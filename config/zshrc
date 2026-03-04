@@ -122,3 +122,4 @@ export PATH=$PATH:~/.pdtm/go/bin
 
 
 [ -f ~/.alias_perso ] && source ~/.alias_perso
+[[ -s "/etc/grc.zsh" ]] && source /etc/grc.zsh

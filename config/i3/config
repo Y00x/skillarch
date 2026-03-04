@@ -92,9 +92,9 @@ bindsym $mod+Shift+Right move right
 bindsym $mod+f fullscreen toggle
 
 # change container layout (stacked, tabbed, toggle split)
-# bindsym $mod+s layout stacking
-# bindsym $mod+z layout tabbed
-# bindsym $mod+BackSpace layout toggle split
+bindsym $mod+s layout stacking
+bindsym $mod+z layout tabbed
+bindsym $mod+t layout toggle split
 
 # toggle tiling / floating
 bindsym $mod+Shift+f floating toggle
@@ -177,7 +177,7 @@ gaps outer 0
 
 bindsym $mod+p exec flameshot gui
 bindsym $mod+Shift+p exec flameshot full -p ~/Pictures/
-bindsym $mod+s exec pavucontrol
+#bindsym $mod+s exec pavucontrol
 bindsym $mod+shift+s exec XDG_CURRENT_DESKTOP=GNOME gnome-control-center
 bindsym $mod+e exec emote
 bindsym $mod+b exec blueman-manager
@@ -186,11 +186,13 @@ bindsym $mod+n exec nautilus
 bindsym $mod+v exec vlc
 bindsym $mod+c exec code
 bindsym $mod+k exec cursor
-bindsym $mod+BackSpace split toggle
+bindsym $mod+shift+t exec kitty --title "Help: One Command" zsh -ic "zsh"
+#bindsym $mod+t split toggle
 bindsym $mod+m exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
 
 bindsym $mod+Escape exec rofi -show power-menu -modi "power-menu:rofi-power-menu --choices shutdown/reboot/logout/suspend"
 bindsym $mod+l exec i3lock-fancy -f Bitstream-Vera-Serif -t 'Welcome back to SkillArch'
+bindsym $mod+Shift+l exec systemctl suspend
 
 # Window Colors
 default_border pixel 2
@@ -209,7 +211,7 @@ for_window [title="^Help: SkillArch packages$"] floating enable
 for_window [title="^Settings$"] floating enable
 for_window [title="^Bluetooth Devices$"] floating enable
 for_window [title="^Volume Control$"] floating enable
-
+for_window [title="^Help: One Command$"] floating enable
 # Add new rules for floating windows
 for_window [floating] resize set 1536 864, resize set 1536 864, move position 192 108
 
