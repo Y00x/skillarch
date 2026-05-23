@@ -181,26 +181,17 @@ gaps outer 0
 
 bindsym $mod+p exec flameshot gui
 bindsym $mod+Shift+p exec flameshot full -p ~/Pictures/
-<<<<<<< HEAD
-#bindsym $mod+s exec pavucontrol
-bindsym $mod+shift+s exec XDG_CURRENT_DESKTOP=GNOME gnome-control-center
-=======
 bindsym $mod+s exec systemsettings kcm_pulseaudio
 bindsym $mod+shift+s exec pavucontrol
->>>>>>> upstream/main
 bindsym $mod+e exec emote
 bindsym $mod+b exec blueman-manager
 bindsym $mod+w exec systemsettings kcm_networkmanagement
 bindsym $mod+n exec thunar
 bindsym $mod+v exec vlc
 bindsym $mod+c exec code
-<<<<<<< HEAD
 bindsym $mod+k exec cursor
 bindsym $mod+shift+t exec kitty --title "Help: One Command" zsh -ic "zsh"
 #bindsym $mod+t split toggle
-=======
-bindsym $mod+BackSpace split toggle
->>>>>>> upstream/main
 bindsym $mod+m exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
 
 bindsym $mod+Escape exec rofi -show power-menu -modi "power-menu:rofi-power-menu --choices shutdown/reboot/logout/suspend"
