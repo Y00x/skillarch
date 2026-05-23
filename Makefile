@@ -1,7 +1,7 @@
 .ONESHELL:
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -c
-.PHONY: help install sanity-check install-base install-cli-tools install-shell install-docker install-gui install-gui-tools install-offensive install-wordlists install-hardening update docker-build docker-build-full docker-run docker-run-full clean test test-lite test-full doctor list-tools backup
+.PHONY: help install sanity-check install-base install-cli-tools install-shell install-docker install-gui install-gui-tools install-offensive install-wordlists install-hardening cloud cloud-export update docker-build docker-build-full docker-run docker-run-full clean test test-lite test-full doctor list-tools backup
 
 # -- Colors & UX Helpers --
 C_RST   := \033[0m
@@ -11,7 +11,8 @@ C_WARN  := \033[1;33m
 C_ERR   := \033[1;31m
 C_BOLD  := \033[1m
 SKA_LOG := /var/tmp/skillarch-install_$$(date +%Y%m%d_%H%M%S).log
-comma   := ,  ## Use the variable $(comma) instead of ',' to prevent it from being used as a parameter separator.
+## Use the variable $(comma) instead of ',' to prevent it from being used as a parameter separator.
+comma   := ,
 
 BOLD = echo -e "$(C_BOLD)$(1)$(C_RST)"
 OK   = echo -e "$(C_OK)✔  $(1)$(C_RST)"
@@ -70,7 +71,7 @@ sanity-check:
 	set -x
 	# Ensure we are in /opt/skillarch or /opt/skillarch-original (maintainer only)
 	[[ "$$(pwd)" != "/opt/skillarch" ]] && [[ "$$(pwd)" != "/opt/skillarch-original" ]] && $(call ERR,You must be in /opt/skillarch or /opt/skillarch-original to run this command) && exit 1 || true
-	sudo -v || ($(call ERR,Error: sudo access is required) ; exit 1)
+	@sudo true || { $(call ERR,Error: sudo access is required) ; exit 1; }
 	[[ ! -f /.dockerenv ]] && { systemd-inhibit --what sleep:idle sleep 3600 & } || true
 
 install-base: sanity-check ## Install base packages
@@ -107,7 +108,7 @@ install-base: sanity-check ## Install base packages
 
 install-cli-tools: sanity-check ## Install CLI tools & runtimes
 	$(call INFO,Installing CLI tools & runtimes...)
-	$(PACMAN_INSTALL) base-devel bison bzip2 ca-certificates cloc cmake dos2unix expect ffmpeg foremost gdb gnupg htop bottom hwinfo icu inotify-tools iproute2 jq llvm lsof ltrace make mlocate mplayer ncurses net-tools ngrep nmap openssh openssl parallel perl-image-exiftool pkgconf python-virtualenv re2c readline ripgrep rlwrap socat sqlite sshpass tmate tor traceroute trash-cli tree unzip vbindiff xclip xz yay zip veracrypt git-delta viu qsv asciinema htmlq neovim glow jless websocat superfile gron eza fastfetch bat sysstat cronie tree-sitter
+	$(PACMAN_INSTALL) base-devel bison bzip2 ca-certificates cloc cmake dos2unix expect ffmpeg foremost gdb gnupg htop bottom hwinfo icu inotify-tools iproute2 jq llvm lsof ltrace make mlocate mplayer ncurses net-tools ngrep nmap openssh openssl parallel perl-image-exiftool pkgconf python-virtualenv re2c readline ripgrep rlwrap socat sqlite sshpass tmate tor traceroute trash-cli tree unzip vbindiff xclip xz yay zip veracrypt git-delta viu qsv asciinema htmlq neovim glow jless websocat superfile gron eza fastfetch bat sysstat cronie tree-sitter bc
 	sudo ln -sf /usr/bin/bat /usr/local/bin/batcat
 	bash -c "$$(curl -fsSL https://gef.blah.cat/sh)" || true
 	[[ ! -f ~/.gdbinit-gef.py ]] && curl -fsSL -o ~/.gdbinit-gef.py https://raw.githubusercontent.com/hugsy/gef/main/gef.py && echo "source ~/.gdbinit-gef.py" >> ~/.gdbinit || echo "gef already installed"
@@ -119,7 +120,7 @@ install-cli-tools: sanity-check ## Install CLI tools & runtimes
 	# Install mise and all php-build dependencies
 	$(PACMAN_INSTALL) mise libedit libffi libjpeg-turbo libpcap libpng libxml2 libzip postgresql-libs php-gd
 	# mise self-update # Currently broken, wait for upstream fix, pinged on 17/03/2025
-	for package in uv usage pdm rust terraform golang python nodejs; do \
+	for package in uv usage pdm rust terraform golang python nodejs opencode; do \
 		for attempt in 1 2 3; do \
 			mise use -g "$$package@latest" && break || { \
 				$(call WARN,mise install $$package failed (attempt $$attempt/3)$(comma) retrying in 5s...) ; \
@@ -171,12 +172,39 @@ install-docker: sanity-check ## Install Docker & Docker Compose
 	[[ ! -f /.dockerenv ]] && sudo systemctl enable --now docker || true
 	$(call DONE,Docker installed!)
 
-install-gui: sanity-check ## Install i3, polybar, kitty, rofi, picom
+install-gui: sanity-check ## Install i3, polybar, kitty, rofi, picom, KDE Plasma
 	$(call INFO,Installing GUI & window manager...)
 	[[ ! -f /etc/machine-id ]] && sudo systemd-machine-id-setup || true
-	$(PACMAN_INSTALL) xorg-server i3-gaps i3blocks i3lock i3lock-fancy-git i3status dmenu feh rofi nm-connection-editor picom polybar kitty brightnessctl xorg-xhost
+	$(PACMAN_INSTALL) xorg-server cachyos-kde-settings plasma-meta i3-gaps i3blocks i3lock i3lock-fancy-git i3status dmenu feh rofi nm-connection-editor picom polybar kitty brightnessctl xorg-xhost
+	# KDE Plasma X11 — Plasma 6 + kwin_x11, also used by cloud VNC target
+	$(PACMAN_INSTALL) plasma-desktop plasma-x11-session kwin-x11 konsole alacritty
 	yay --noconfirm --needed -S rofi-power-menu i3-battery-popup-git
-	gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+	# ── KDE Dark Theme (BreezeDark) ──
+	# plasma-apply-colorscheme needs a running Plasma session (D-Bus); during install
+	# it usually fails silently. Write kdeglobals + GTK configs directly as fallback.
+	plasma-apply-colorscheme BreezeDark 2>/dev/null || true
+	plasma-apply-wallpaperimage /opt/skillarch/assets/bg.jpg 2>/dev/null || true
+	mkdir -p ~/.config ~/.config/gtk-3.0 ~/.config/gtk-4.0
+	# kdeglobals — force BreezeDark color scheme + Breeze icons for all KDE/Qt apps
+	kwriteconfig6 --file ~/.config/kdeglobals --group General --key ColorScheme BreezeDark 2>/dev/null || true
+	kwriteconfig6 --file ~/.config/kdeglobals --group General --key Name "Breeze Dark" 2>/dev/null || true
+	kwriteconfig6 --file ~/.config/kdeglobals --group Icons --key Theme breeze-dark 2>/dev/null || true
+	kwriteconfig6 --file ~/.config/kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop 2>/dev/null || true
+	# GTK 3/4 — sync dark theme so GTK apps (Firefox, etc.) also go dark
+	echo -e '[Settings]\ngtk-theme-name=Breeze-Dark\ngtk-icon-theme-name=breeze-dark\ngtk-application-prefer-dark-theme=true' > ~/.config/gtk-3.0/settings.ini
+	echo -e '[Settings]\ngtk-theme-name=Breeze-Dark\ngtk-icon-theme-name=breeze-dark\ngtk-application-prefer-dark-theme=true' > ~/.config/gtk-4.0/settings.ini
+	echo "export QT_QPA_PLATFORMTHEME=kde" > ~/.xprofile # Ensures Qt apps read kdeglobals under i3 (not just Plasma)
+	echo "export XDG_SESSION_TYPE=x11" >> ~/.xprofile # Ensure other other apps rely on x11 instead of wayland
+	# ── MIME defaults: image=eog, video/audio=vlc, pdf/html=chrome, text=kate, dir=thunar ──
+	# GTK file managers (Thunar, Nautilus, etc.) and xdg-open read ~/.config/mimeapps.list.
+	# We use Thunar instead of Dolphin because KIO's portal-based launcher hangs under i3.
+	printf '%s\n' '[Default Applications]' 'image/png=org.gnome.eog.desktop' 'image/jpeg=org.gnome.eog.desktop' 'image/gif=org.gnome.eog.desktop' 'image/webp=org.gnome.eog.desktop' 'image/bmp=org.gnome.eog.desktop' 'image/tiff=org.gnome.eog.desktop' 'image/svg+xml=org.gnome.eog.desktop' 'video/mp4=vlc.desktop' 'video/x-matroska=vlc.desktop' 'video/webm=vlc.desktop' 'video/quicktime=vlc.desktop' 'video/x-msvideo=vlc.desktop' 'audio/mpeg=vlc.desktop' 'audio/ogg=vlc.desktop' 'audio/flac=vlc.desktop' 'audio/x-wav=vlc.desktop' 'audio/vnd.wave=vlc.desktop' 'application/pdf=google-chrome.desktop' 'text/html=google-chrome.desktop' 'x-scheme-handler/http=google-chrome.desktop' 'x-scheme-handler/https=google-chrome.desktop' 'x-scheme-handler/about=google-chrome.desktop' 'x-scheme-handler/unknown=google-chrome.desktop' 'x-scheme-handler/mailto=google-chrome.desktop' 'text/plain=org.kde.kate.desktop' 'inode/directory=thunar.desktop' > ~/.config/mimeapps.list
+	# Pin default taskbar launchers (systemsettings, chrome, thunar, alacritty)
+	mkdir -p ~/.config
+	PLASMA_RC=~/.config/plasma-org.kde.plasma.desktop-appletsrc ; \
+	if [[ -f "$$PLASMA_RC" ]]; then \
+		sed -i 's|^launchers=.*|launchers=applications:systemsettings.desktop,applications:google-chrome.desktop,applications:thunar.desktop,applications:Alacritty.desktop|' "$$PLASMA_RC" ; \
+	fi
 
 	# i3 config
 	[[ ! -d ~/.config/i3 ]] && mkdir -p ~/.config/i3 || true
@@ -208,20 +236,31 @@ install-gui-tools: sanity-check ## Install GUI apps (Chrome, VSCode, Ghidra, etc
 	$(call INFO,Installing GUI applications...)
 	# Pre-create flatpak repo dir so post-install hooks don't fail in Docker (flatpak may be pulled as a dependency)
 	[[ -f /.dockerenv ]] && sudo mkdir -p /var/lib/flatpak/repo || true
-	$(PACMAN_INSTALL) vlc vlc-plugin-ffmpeg arandr blueman visual-studio-code-bin discord dunst filezilla flameshot ghex google-chrome gparted kdenlive kompare libreoffice-fresh meld okular qbittorrent torbrowser-launcher wireshark-qt ghidra signal-desktop dragon-drop-git nomachine emote guvcview audacity polkit-gnome
-	[[ ! -f /.dockerenv ]] && $(PACMAN_INSTALL) flatpak && flatpak install -y flathub com.obsproject.Studio && flatpak install -y flathub org.gnome.Snapshot || true
+	# Force refresh DBs — chaotic-aur rolls fast; stale local DB → 404 on package files (e.g. visual-studio-code-bin)
+	sudo pacman --noconfirm -Syy || true
+	$(PACMAN_INSTALL) vlc vlc-plugin-ffmpeg arandr blueman visual-studio-code-bin discord dunst filezilla flameshot ghex google-chrome gparted kdenlive kompare libreoffice-fresh meld okular qbittorrent torbrowser-launcher wireshark-qt ghidra signal-desktop dragon-drop-git emote guvcview audacity polkit-kde-agent kamoso thunar thunar-archive-plugin thunar-volman tumbler ffmpegthumbnailer gvfs gvfs-mtp file-roller
+	[[ ! -f /.dockerenv ]] && $(PACMAN_INSTALL) flatpak && flatpak install -y flathub com.obsproject.Studio || true
 	# Do not start services in docker
-	[[ ! -f /.dockerenv ]] && sudo systemctl disable --now nxserver.service || true
+
 	xargs -n1 -I{} code --install-extension {} --force < config/extensions.txt
-	for pkg in fswebcam cursor-bin; do yay --noconfirm --needed -S "$$pkg" || $(call WARN,Failed to install $$pkg$(comma) continuing...); done
+	for pkg in fswebcam; do yay --noconfirm --needed -S "$$pkg" || $(call WARN,Failed to install $$pkg$(comma) continuing...); done
 	sudo ln -sf /usr/bin/google-chrome-stable /usr/local/bin/gog
 	$(call DONE,GUI applications installed!)
 
 install-offensive: sanity-check ## Install offensive & security tools
 	$(call INFO,Installing offensive tools...)
-	$(PACMAN_INSTALL) metasploit fx lazygit fq gitleaks jdk21-openjdk burpsuite hashcat bettercap
-	sudo sed -i 's#$$JAVA_HOME#/usr/lib/jvm/java-21-openjdk#g' /usr/bin/burpsuite
-	for pkg in ffuf gau pdtm-bin waybackurls fabric-ai-bin; do yay --noconfirm --needed -S "$$pkg" || $(call WARN,Failed to install $$pkg$(comma) continuing...); done
+	$(PACMAN_INSTALL) metasploit fx lazygit fq gitleaks jdk21-openjdk hashcat bettercap bore
+	for pkg in ffuf gau pdtm-bin waybackurls fabric-ai-bin caido-desktop caido-cli; do yay --noconfirm --needed -S "$$pkg" || $(call WARN,Failed to install $$pkg$(comma) continuing...); done
+
+	# HExHTTP: HTTP header vuln/cache-poisoning scanner — clone + isolated venv + PATH shim.
+	# Upstream pyproject entrypoint is broken (hexhttp.py not packaged); bypass with a direct wrapper.
+	[[ ! -d /opt/HExHTTP ]] && git clone --depth=1 https://github.com/c0dejump/HExHTTP /tmp/HExHTTP && sudo mv /tmp/HExHTTP /opt/HExHTTP && sudo chown -R "$$USER:$$USER" /opt/HExHTTP || true
+	[[ -d /opt/HExHTTP && ! -d /opt/HExHTTP/.venv ]] && mise exec -- uv venv -q /opt/HExHTTP/.venv && VIRTUAL_ENV=/opt/HExHTTP/.venv mise exec -- uv pip install -q -r <(sed -n '/^dependencies = \[/,/^\]/p' /opt/HExHTTP/pyproject.toml | grep -oP '"\K[^"]+(?=")' | grep -v 'darwin') || true
+	sudo tee /usr/local/bin/hexhttp > /dev/null <<-'SHIM'
+		#!/usr/bin/env bash
+		exec /opt/HExHTTP/.venv/bin/python /opt/HExHTTP/hexhttp.py "$$@"
+	SHIM
+	sudo chmod +x /usr/local/bin/hexhttp
 
 	# Hide stdout and Keep stderr for CI builds -- run go installs in parallel
 	mise exec -- go install github.com/sw33tLie/sns@latest > /dev/null &
@@ -267,7 +306,8 @@ install-wordlists: sanity-check ## Install wordlists (SecLists, rockyou, etc.)
 	[[ ! -d /opt/lists ]] && sudo mkdir -p /opt/lists && sudo chown "$$USER:$$USER" /opt/lists || true
 	# Download all wordlists in parallel
 	ska_clone_list() { local pkg=$${1##*/}; [[ ! -d "/opt/lists/$$pkg" ]] && git clone --depth=1 "$$1" "/var/tmp/$$pkg" && sudo mv "/var/tmp/$$pkg" "/opt/lists/$$pkg" || true ; }
-	( [[ ! -f /opt/lists/rockyou.txt ]] && curl -L https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt -o /opt/lists/rockyou.txt || true ) &
+	( [[ ! -f /opt/lists/rockyou.txt ]] && curl -sL "https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt" -o /opt/lists/rockyou.txt || true ) &
+	( [[ ! -f /opt/lists/confusables.txt ]] && curl -sL "https://www.unicode.org/Public/security/latest/confusables.txt" -o /opt/lists/confusables.txt || true ) &
 	ska_clone_list https://github.com/swisskyrepo/PayloadsAllTheThings &
 	ska_clone_list https://github.com/1N3/BruteX &
 	ska_clone_list https://github.com/1N3/IntruderPayloads &
@@ -287,6 +327,146 @@ install-hardening: sanity-check ## Install hardening tools (opensnitch)
 	# OPT-IN opensnitch as an egress firewall
 	# sudo systemctl enable --now opensnitchd.service
 	$(call DONE,Hardening tools installed!)
+
+cloud: sanity-check ## (Standalone) Install KasmVNC + cloud-init for cloud/remote desktop — NOT part of make install
+	$(call INFO,Installing cloud/remote desktop tools...)
+
+	# ── KasmVNC ──
+	# openssl-1.1: KasmVNC binary is linked against libssl.so.1.1
+	yay --noconfirm --needed -S openssl-1.1 || $(call WARN,Failed to install openssl-1.1$(comma) continuing...)
+	# KasmVNC: browser-based VNC remote desktop (per-user, no systemd daemon)
+	yay --noconfirm --needed -S kasmvncserver-bin || $(call WARN,Failed to install kasmvncserver-bin$(comma) continuing...)
+
+	# ── KasmVNC config ──
+	mkdir -p ~/.vnc
+	$(call ska-link,/opt/skillarch/config/kasmvnc.yaml,$$HOME/.vnc/kasmvnc.yaml)
+	$(call ska-link,/opt/skillarch/config/vnc-xstartup,$$HOME/.vnc/xstartup)
+	# Self-signed SSL cert (one-time)
+	[[ ! -f ~/.vnc/self.pem ]] && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+		-keyout ~/.vnc/self.key -out ~/.vnc/self.pem -subj "/CN=vnc" 2>/dev/null && chmod 600 ~/.vnc/self.key || true
+	# Dummy kasmpasswd — KasmVNC refuses to start without one; -DisableBasicAuth makes it unused.
+	# Password MUST be >= 6 chars or kasmvncpasswd silently fails.
+	[[ ! -f ~/.kasmpasswd ]] && echo -e "kasmvnc\nkasmvnc" | kasmvncpasswd -u dummy -w -ow ~/.kasmpasswd 2>/dev/null && chmod 600 ~/.kasmpasswd || true
+	# Mark DE as already selected — xstartup is pre-configured; skips interactive DE picker
+	touch ~/.vnc/.de-was-selected
+	# Polkit: allow wheel group to act without password — VNC sessions have no local seat for polkit prompts
+	sudo tee /etc/polkit-1/rules.d/49-nopasswd-wheel.rules > /dev/null <<< 'polkit.addRule(function(action, subject) { if (subject.isInGroup("wheel")) { return polkit.Result.YES; } });'
+
+	# ── tmux: cloud theme (dark purple-blue status bar) ──
+	sed -i "s|^set-option -g status-bg.*|set-option -g status-bg '#1e1e2e'  # deep dark purple-blue|" /opt/skillarch/config/tmux.conf
+	sed -i "s|^set-option -g status-fg.*|set-option -g status-fg '#cba6f7'  # soft lavender|" /opt/skillarch/config/tmux.conf
+
+	# ── cloud-init ──
+	# Replace gnu-netcat with openbsd-netcat (cloud-init dependency, nothing depends on gnu-netcat)
+	sudo pacman -Rdd --noconfirm gnu-netcat 2>/dev/null || true
+	$(PACMAN_INSTALL) cloud-init
+	# Enable cloud-init services so the VM auto-configures on first boot (network, SSH keys, hostname, etc.)
+	# cloud-init 25.x split services: cloud-init-local, cloud-init-main, cloud-init-network, cloud-config, cloud-final
+	[[ ! -f /.dockerenv ]] && sudo systemctl enable cloud-init-local.service cloud-init-main.service cloud-init-network.service cloud-config.service cloud-final.service || true
+	# Proxmox compatibility: enable NoCloud + ConfigDrive datasources (Proxmox uses NoCloud via CDROM/SMBIOS)
+	# DigitalOcean compatibility: enable DigitalOcean datasource
+	sudo sed -i 's/^#\?\s*datasource_list:.*/datasource_list: [NoCloud, ConfigDrive, DigitalOcean, None]/' /etc/cloud/cloud.cfg 2>/dev/null \
+		|| echo 'datasource_list: [NoCloud, ConfigDrive, DigitalOcean, None]' | sudo tee -a /etc/cloud/cloud.cfg > /dev/null
+	# Preserve the existing user instead of creating a default "arch" user
+	sudo sed -i 's/^\(\s*name:\s*\).*/\1'"$$USER"'/' /etc/cloud/cloud.cfg 2>/dev/null || true
+	# Allow password & root SSH login via cloud-init (prevents 50-cloud-init.conf from disabling them on boot)
+	grep -q '^ssh_pwauth' /etc/cloud/cloud.cfg && sudo sed -i 's/^#\?\s*ssh_pwauth:.*/ssh_pwauth: true/' /etc/cloud/cloud.cfg \
+		|| echo 'ssh_pwauth: true' | sudo tee -a /etc/cloud/cloud.cfg > /dev/null
+	grep -q '^disable_root' /etc/cloud/cloud.cfg && sudo sed -i 's/^#\?\s*disable_root:.*/disable_root: false/' /etc/cloud/cloud.cfg \
+		|| echo 'disable_root: false' | sudo tee -a /etc/cloud/cloud.cfg > /dev/null
+
+	# ── Sudoers (passwordless sudo for hacker) ──
+	echo 'hacker ALL=(ALL:ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/99-hacker > /dev/null && sudo chmod 440 /etc/sudoers.d/99-hacker
+
+	# ── SSH ──
+	$(PACMAN_INSTALL) openssh
+	[[ ! -f /.dockerenv ]] && sudo systemctl enable --now sshd.service || true
+	sudo sed -i 's/^#\?\s*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+	sudo sed -i 's/^#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+	sudo sed -i 's/^#\?\s*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+	[[ ! -f /.dockerenv ]] && sudo systemctl restart sshd.service || true
+	sudo ufw allow 22/tcp comment 'SSH' || true
+
+	# ── Delete all Snapper snapshots ──
+	# Snapper read-only snapshots cause libguestfs to detect multiple OS roots,
+	# breaking virt-sysprep during cloud-export. Clean slate for smaller exports too.
+	$(call INFO,Deleting all Snapper snapshots...)
+	sudo snapper delete $$(sudo snapper list --columns number | tail -n +4 | tr -d ' ' | tr '\n' ' ') 2>/dev/null || true
+
+	$(call DONE,Cloud tools installed! Start KasmVNC with: ska-vnc)
+
+cloud-export: ## Export a libvirt VM to a clean qcow2 (for Proxmox/DO import)
+	@$(call INFO,Scanning libvirt VMs via virsh...)
+	echo ""
+	# ── Discover VMs ──
+	VM_LIST=$$(virsh -c qemu:///session list --all --name | sed '/^$$/d')
+	[[ -z "$$VM_LIST" ]] && $(call ERR,No VMs found in qemu:///session) && exit 1
+	# ── Build a nice picker ──
+	i=0
+	declare -A VM_MAP
+	while IFS= read -r vm; do \
+		((i++)) || true ; \
+		STATE=$$(virsh -c qemu:///session domstate "$$vm" 2>/dev/null | head -1) ; \
+		VCPUS=$$(virsh -c qemu:///session dominfo "$$vm" 2>/dev/null | awk '/CPU\(s\)/{print $$2}') ; \
+		RAM=$$(virsh -c qemu:///session dominfo "$$vm" 2>/dev/null | awk '/Max memory/{printf "%.0fG", $$3/1048576}') ; \
+		DISK=$$(virsh -c qemu:///session domblklist "$$vm" --details 2>/dev/null | awk '/disk/{print $$4}') ; \
+		DISK_SIZE=$$(qemu-img info "$$DISK" 2>/dev/null | awk '/virtual size/{print $$3, $$4}' || echo "?") ; \
+		SNAPS=$$(virsh -c qemu:///session snapshot-list "$$vm" --name 2>/dev/null | sed '/^$$/d' | wc -l) ; \
+		TITLE=$$(virsh -c qemu:///session dumpxml "$$vm" 2>/dev/null | grep -oP '(?<=<title>).*(?=</title>)' || echo "") ; \
+		[[ -n "$$TITLE" ]] && LABEL="$$TITLE ($$vm)" || LABEL="$$vm" ; \
+		printf "  $(C_BOLD)%d)$(C_RST)  %-30s  $(C_INFO)%-10s$(C_RST)  %s vCPU  %s RAM  %s  %d snapshot(s)\n" \
+			"$$i" "$$LABEL" "[$$STATE]" "$$VCPUS" "$$RAM" "$$DISK_SIZE" "$$SNAPS" ; \
+		VM_MAP[$$i]="$$vm" ; \
+	done <<< "$$VM_LIST"
+	echo ""
+	# ── Interactive pick ──
+	read -rp "Select VM number: " PICK
+	VM_NAME="$${VM_MAP[$$PICK]:-}"
+	[[ -z "$$VM_NAME" ]] && $(call ERR,Invalid selection) && exit 1
+	# ── Ensure VM is shut off ──
+	VM_STATE=$$(virsh -c qemu:///session domstate "$$VM_NAME" | head -1)
+	[[ "$$VM_STATE" != "shut off" ]] && $(call ERR,VM \"$$VM_NAME\" is $$VM_STATE — please shut it down first) && exit 1
+	# ── Locate source disk ──
+	SRC_DISK=$$(virsh -c qemu:///session domblklist "$$VM_NAME" --details | awk '/disk/{print $$4}')
+	[[ ! -f "$$SRC_DISK" ]] && $(call ERR,Disk image not found: $$SRC_DISK) && exit 1
+	SNAP_COUNT=$$(virsh -c qemu:///session snapshot-list "$$VM_NAME" --name 2>/dev/null | sed '/^$$/d' | wc -l)
+	$(call INFO,Source disk: $$SRC_DISK)
+	$(call INFO,Snapshots to flatten: $$SNAP_COUNT)
+	# ── Output path ──
+	OUT_DIR="/DATA/VMs/exports"
+	mkdir -p "$$OUT_DIR"
+	TIMESTAMP=$$(date +%Y%m%d-%H%M%S)
+	OUT_FILE="$$OUT_DIR/skillarch-$$TIMESTAMP.qcow2"
+	# ── Flatten snapshots + convert to clean qcow2 ──
+	$(call INFO,Converting to clean qcow2 (flattening all snapshots)...)
+	$(call WARN,This may take a while depending on disk size...)
+	qemu-img convert -p -O qcow2 "$$SRC_DISK" "$$OUT_FILE"
+	# ── Sparsify to reclaim zeroed blocks ──
+	$(call INFO,Sparsifying to shrink the image...)
+	virt-sparsify --in-place "$$OUT_FILE"
+	# ── Sysprep: clean machine-id, logs, SSH host keys for fresh cloud-init boot ──
+	$(call INFO,Sysprep: cleaning machine-id$(comma) SSH host keys$(comma) logs...)
+	virt-sysprep -a "$$OUT_FILE" \
+		--operations ssh-hostkeys,logfiles,tmp-files,bash-history,customize \
+		--no-selinux-relabel \
+		--run-command 'truncate -s0 /etc/machine-id || true' \
+		--run-command 'rm -f /var/lib/cloud/instance /var/lib/cloud/instances/* 2>/dev/null; true'
+	# ── Summary ──
+	FINAL_SIZE=$$(du -h "$$OUT_FILE" | cut -f1)
+	echo ""
+	$(call OK,Export complete!)
+	echo ""
+	echo "  File:   $$OUT_FILE"
+	echo "  Size:   $$FINAL_SIZE"
+	echo "  Format: qcow2 (no snapshots$(comma) BIOS/GRUB$(comma) cloud-init ready)"
+	echo ""
+	echo "  Import to Proxmox:"
+	echo "    scp $$OUT_FILE root@proxmox:/var/lib/vz/images/"
+	echo "    qm importdisk <VMID> /var/lib/vz/images/$$(basename $$OUT_FILE) local-lvm"
+	echo ""
+	echo "  Import to DigitalOcean:"
+	echo "    doctl compute image create skillarch --image-url <upload-url> --region nyc1"
+	echo ""
 
 update: sanity-check ## Update SkillArch (pull & prompt reinstall)
 	@[[ -n "$$(git status --porcelain)" ]] && echo "Error: git state is dirty, please \"git stash\" your changes before updating" && exit 1 || true
@@ -323,6 +503,7 @@ test: ## Validate installation (smoke tests)
 		ska_check "$$bin" "which $$bin"
 	done
 	ska_check "sqlmap"      "which sqlmap || [[ -f ~/.local/bin/sqlmap ]]"
+	ska_check "hexhttp"     "which hexhttp || [[ -f ~/.local/bin/hexhttp ]]"
 	ska_check "nuclei"      "which nuclei || [[ -f ~/.pdtm/go/bin/nuclei ]]"
 	ska_check "httpx"       "which httpx || [[ -f ~/.pdtm/go/bin/httpx ]]"
 	ska_check "subfinder"   "which subfinder || [[ -f ~/.pdtm/go/bin/subfinder ]]"
@@ -373,6 +554,7 @@ test-lite: ## Validate lite Docker image install
 	for bin in ffuf hashcat bettercap msfconsole gobypass403 wpprobe; do
 		ska_check "$$bin" "which $$bin"
 	done
+	ska_check "hexhttp"   "which hexhttp || [[ -f ~/.local/bin/hexhttp ]]"
 	ska_check "nuclei"    "which nuclei || [[ -f ~/.pdtm/go/bin/nuclei ]]"
 	ska_check "httpx"     "which httpx || [[ -f ~/.pdtm/go/bin/httpx ]]"
 	ska_check "gef"       "[[ -f ~/.gdbinit-gef.py ]]"
@@ -506,11 +688,12 @@ list-tools: ## List installed offensive tools & versions
 	ska_ver "httpx"      "httpx -version 2>&1 | tail -1"
 	ska_ver "subfinder"  "subfinder -version 2>&1 | head -1"
 	ska_ver "sqlmap"     "sqlmap --version 2>&1 | head -1"
+	ska_ver "hexhttp"    "hexhttp --version 2>&1 | head -1"
 	ska_ver "msfconsole" "msfconsole --version 2>&1 | head -1"
 	ska_ver "hashcat"    "hashcat --version 2>&1 | head -1"
 	ska_ver "bettercap"  "bettercap -version"
 	ska_ver "gitleaks"   "gitleaks version 2>&1"
-	ska_ver "burpsuite"  "burpsuite --version" ## "echo 'installed (GUI)'"
+	ska_ver "caido"      "caido --version 2>&1 | head -1"
 	ska_ver "ghidra"     "cat /opt/ghidra/bom.json| jq -r '.components[].version'|head -1" ## "echo 'installed (GUI)'"
 	ska_ver "wireshark"  "wireshark --version 2>&1 | head -1"
 	$(call BOLD,\n--- uv Tools ---)

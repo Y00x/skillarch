@@ -18,7 +18,8 @@
 [![](https://img.youtube.com/vi/HB1hxJgGoDo/0.jpg)](https://youtu.be/HB1hxJgGoDo)
 
 - First, download the `Desktop Edition` at https://cachyos.org/download/
-- Install it, pick the `Gnome` flavor
+- Install it, pick the `Plasma` flavor (SkillArch runs i3 on top but reuses Plasma's session/settings stack)
+- In the installer's bootloader step, **pick BIOS (legacy)** — keeps qcow/cloud-image compatibility straightforward; UEFI works but complicates exports
 - Then open `Console` and install SkillArch 🥂
 
 ```bash
@@ -42,24 +43,18 @@ ska-update-simple
 1. When you'll want to `add a tweak` or  `update your setup` 🫶
 
 ```bash
-# Update by running this command (simply follow the process):
+# Interactive upstream-merge — just follow the Y/n prompts:
 ska-update-advanced
 
-# "The process" is mostly like below:
-# SAVE your changes on your repo
-git add foo ; git commit -m i-added-foo ; git push
-# Then, from a CLEAN git state
-ska && git status
-# PULL & CHECKOUT upstream changes
-git fetch upstream && git checkout main
-# MERGE upstream changes
-git merge upstream/main
-# SAVE your new current state
-git push origin main
-# Check & Compare your current drift from upstream
-git diff upstream/main
-# Reapply with latest changes
-ska-update-simple
+# Under the hood it walks you through:
+#   1. detect local changes → prompt to commit + push
+#   2. git fetch upstream
+#   3. show incoming commit graph + overall diff-stat + FULL patch (pagers disabled)
+#   4. prompt to merge upstream/main
+#   5. prompt to push origin/main
+#   6. prompt to reapply via ska-update-simple (make update && make install)
+#   7. show your final drift vs upstream (commits + stat + full patch)
+#   8. nudge you toward the SkillArch Discord channel
 ```
 
 > ⚠️ Remember to NEVER add secrets in your dotfiles 🙏\
@@ -78,30 +73,40 @@ ska-update-simple
 
 ```bash
 make help
-# Welcome to SkillArch! 🌹
+# Welcome to SkillArch! <3
+#
 # Usage: make [target]
 # Targets:
+#
 #   help                Show this help message
-#   install             Install SkillArch
+#   install             Install SkillArch (full)
 #   install-base        Install base packages
-#   install-cli-tools   Install system packages
-#   install-shell       Install shell packages
-#   install-docker      Install docker
-#   install-gui         Install gui, i3, polybar, kitty, rofi, picom
-#   install-gui-tools   Install system packages
-#   install-offensive   Install offensive tools
-#   install-wordlists   Install wordlists
-#   install-hardening   Install hardening tools
-#   update              Update SkillArch
-#   docker-build        Build lite docker image locally
-#   docker-build-full   Build full docker image locally
-#   docker-run          Run lite docker image locally
-#   docker-run-full     Run full docker image locally
+#   install-cli-tools   Install CLI tools & runtimes
+#   install-shell       Install shell, zsh, oh-my-zsh, fzf, tmux
+#   install-docker      Install Docker & Docker Compose
+#   install-gui         Install i3, polybar, kitty, rofi, picom, KDE Plasma
+#   install-gui-tools   Install GUI apps (Chrome, VSCode, Ghidra, etc.)
+#   install-offensive   Install offensive & security tools
+#   install-wordlists   Install wordlists (SecLists, rockyou, etc.)
+#   install-hardening   Install hardening tools (opensnitch)
+#   cloud               (Standalone) Install KasmVNC + cloud-init for cloud/remote desktop — NOT part of make install
+#   cloud-export        Export a libvirt VM to a clean qcow2 (for Proxmox/DO import)
+#   update              Update SkillArch (pull & prompt reinstall)
+#   test                Validate installation (smoke tests)
+#   test-lite           Validate lite Docker image install
+#   test-full           Validate full Docker image install (runs test + extras)
+#   doctor              Diagnose system health & common issues
+#   list-tools          List installed offensive tools & versions
+#   backup              Backup current configs before overwriting
+#   docker-build        Build lite Docker image locally
+#   docker-build-full   Build full Docker image locally
+#   docker-run          Run lite Docker image locally
+#   docker-run-full     Run full Docker image locally
 #   clean               Clean up system and remove unnecessary files
 ```
 
 > Or join the SkillArch Discord server 🍀\
-> ➡️ https://discord.com/invite/tH8wEpNKWS ⬅️\
+> ➡️ https://discord.gg/2T8GGAnwv5 ⬅️\
 > Yes, I help in the SkillArch channel, not in DMs! 😇
 
 ### Ska Helpers, i3 bindings, aliases, tools
@@ -113,7 +118,8 @@ make help
 | `ska-help-packages` | Fuzzy-find installed packages |
 | `ska-sudo-unlock` | Unlock current user after 3 sudo fails |
 | `ska-update-simple` | Update SkillArch repo & starts install |
-| `ska-update-advanced` | Helper to Pull Upstream & merge |
+| `ska-update-advanced` | Interactive upstream-merge for forks (prompts at each step) |
+| `ska-vnc` | Start KDE Plasma desktop via KasmVNC (browser at https://127.0.0.1:8443) |
 
 ### MISC Gotchas
 
@@ -124,21 +130,74 @@ make help
 - The docker `full` image contains GUI stuff and wordlists
 - Why `sleep` in `Makefile`? Building TOO fast was triggering github limit-rate
 - No [CachyOs on ARM](https://discuss.cachyos.org/t/arm-future-for-cachyos/727), therefore no SkillArch on ARM.
-- Extensions are installed for VsCode. Cursor packaging is weird, so while it's open: `ctrl+shift+p` > `Import VsCode Extensions`
 - Chrome extensions are not installed by default. Have a look to [/config/chrome-extensions.lst](/config/chrome-extensions.lst)
 
-### VM & VirtualBox Stuff
+### VM Hosts
 
-> I've had tons of issues with VirtualBox laterly, and things worked PERFECTLY on Gnome Boxes (from `qemu-full` and `gnome-extra`), I strongly suggest using it instead, see the install guide above.
+> **GNOME Boxes is now the first-class citizen** 🥳 — zero-config, dead-simple, "just works" with the SkillArch qcow image below. `virt-manager` (from `qemu-full`) remains a great power-user alternative. VirtualBox had too many regressions — not recommended anymore but still supported on a best-effort basis.
 
-- The `ska-vbox-install-guestutils` alias will auto-install `virtualbox-guest-utils`
-- In `VirtualBox`, when i3 starts it will run `VBoxClient-all` for clipboard & goodies
-- Transparency `CAN` work with `picom` but:
-  - It requires to enable `enable hardware virtualization`
-  - It is basically `very slow` even with a good GPU
-  - I advise to `not` use it, but do your things, PR opens!
-  - Currently it's only started in i3 while not running in an hypervisor
-  - In `~/config/i3/config` : `killall -q picom ; grep -qF hypervisor /proc/cpuinfo || picom`
+- GNOME Boxes: `sudo pacman -S gnome-boxes` (not in SkillArch's default install), launch it, "New" → pick the downloaded qcow — done.
+- `virt-manager`: `sudo pacman -S qemu-full virt-manager` then `virt-manager` → New VM → import existing qcow.
+- VirtualBox (legacy path):
+  - `ska-vbox-install-guestutils` — auto-installs `virtualbox-guest-utils`
+  - When i3 starts it runs `VBoxClient-all` for clipboard & goodies
+  - Transparency `CAN` work with `picom` but:
+    - It requires to enable `enable hardware virtualization`
+    - It is basically `very slow` even with a good GPU
+    - I advise to `not` use it, but do your things, PR opens!
+    - Currently it's only started in i3 while not running in an hypervisor
+    - In `~/config/i3/config` : `killall -q picom ; grep -qF hypervisor /proc/cpuinfo || picom`
+
+### Pre-Built SkillArch qcow (no install, just boot)
+
+I maintain a ready-to-boot SkillArch qcow2 image in a public S3 bucket. No CachyOS install, no `make install` — just download and launch in GNOME Boxes / virt-manager / Proxmox / any qemu frontend.
+
+Bucket (public, HTTPS, no AWS CLI needed): https://skillarch.s3.eu-west-3.amazonaws.com/
+
+```bash
+# --- List every retained version (former + recent), newest first ---
+curl -s 'https://skillarch.s3.eu-west-3.amazonaws.com/?list-type=2' \
+  | grep -oP '(?<=<Key>)skillarch-[^<]+\.qcow2(?=</Key>)' | sort -r
+
+# --- Resolve & download the LATEST in one shot ---
+BASE='https://skillarch.s3.eu-west-3.amazonaws.com'
+LATEST=$(curl -s "$BASE/?list-type=2" | grep -oP '(?<=<Key>)skillarch-[^<]+\.qcow2(?=</Key>)' | sort -r | head -1)
+curl -LO --continue-at - "$BASE/$LATEST"
+echo "Downloaded: $LATEST"
+```
+
+- Image is built from the cloud target (`make cloud`) — KasmVNC + cloud-init + SSH already wired.
+- BIOS boot (not UEFI) — import works everywhere without firmware fiddling.
+- Default user: `hacker` (passwordless sudo via cloud-init, change it on first boot).
+- See the [Cloud Target](#cloud-target-standalone----make-cloud) section for how the image is produced (`make cloud-export` flattens snapshots, sparsifies, and sysprep's).
+
+#### Boot it with libvirt / virsh (pure CLI, no GUI importer)
+
+Proven reliable params for the SkillArch qcow — q35, host-passthrough CPU, virtio disk/net, qemu-guest-agent, SPICE + QXL:
+
+```bash
+QCOW="$PWD/$LATEST"     # from the download block above
+
+virt-install --connect qemu:///session \
+  --name skillarch \
+  --memory 8192 --vcpus 4 \
+  --machine q35 --cpu host-passthrough \
+  --osinfo detect=on,require=off \
+  --disk path="$QCOW",bus=virtio,format=qcow2 \
+  --network network=default,model=virtio \
+  --channel unix,target_type=virtio,target_name='org.qemu.guest_agent.0' \
+  --rng /dev/urandom \
+  --graphics spice --video qxl \
+  --import --noautoconsole
+
+# Manage it with virsh:
+virsh -c qemu:///session list --all
+virsh -c qemu:///session domdisplay skillarch     # prints spice://... URI
+virsh -c qemu:///session domifaddr skillarch      # show VM IP once booted
+# Connect:   remote-viewer $(virsh -c qemu:///session domdisplay skillarch)
+# Or SSH:    ssh hacker@<vm-ip>
+# Stop/start/destroy: virsh -c qemu:///session {shutdown,start,destroy} skillarch
+```
 
 ### Multiple Monitor
 
@@ -259,15 +318,14 @@ bindsym $mod+a scratchpad show
 # Custom Apps & Settings
 bindsym $mod+p exec flameshot gui
 bindsym $mod+Shift+p exec flameshot full -p ~/Pictures/
-bindsym $mod+s exec pavucontrol
-bindsym $mod+shift+s exec XDG_CURRENT_DESKTOP=GNOME gnome-control-center
+bindsym $mod+s exec systemsettings kcm_pulseaudio
+bindsym $mod+shift+s exec pavucontrol
 bindsym $mod+e exec emote
 bindsym $mod+b exec blueman-manager
-bindsym $mod+w exec XDG_CURRENT_DESKTOP=GNOME gnome-control-center wifi
-bindsym $mod+n exec nautilus
+bindsym $mod+w exec systemsettings kcm_networkmanagement
+bindsym $mod+n exec thunar
 bindsym $mod+v exec vlc
 bindsym $mod+c exec code
-bindsym $mod+k exec cursor
 ```
 
 ### Installed Packages, Plugins, Tools
@@ -276,16 +334,19 @@ bindsym $mod+k exec cursor
 
 ```bash
 # Pacman Packages
-arandr asciinema base-devel bat bettercap bison blueman bottom brightnessctl burpsuite bzip2 ca-certificates cloc cmake visual-studio-code-bin curl discord dmenu docker docker-compose dos2unix dragon-drop-git dunst emote eza expect fastfetch feh ffmpeg filezilla flameshot foremost fq fx gdb ghex ghidra git git-delta gitleaks glow gnupg google-chrome gparted gron guvcview hashcat htmlq htop hwinfo xorg-server i3-gaps i3blocks i3lock i3lock-fancy-git i3status icu inotify-tools iproute2 jless jq kdenlive kitty kompare lazygit libedit libffi libjpeg-turbo libpcap libpng libreoffice-fresh libxml2 libzip llvm lsof ltrace make meld metasploit mise mlocate mplayer ncurses neovim net-tools ngrep nm-connection-editor nmap nomachine okular opensnitch openssh openssl parallel perl-image-exiftool php-gd picom pkgconf polybar postgresql-libs python-virtualenv qbittorrent re2c readline ripgrep rlwrap rofi signal-desktop socat sqlite sshpass superfile sysstat tmate tmux tor torbrowser-launcher traceroute trash-cli tree unzip vbindiff veracrypt vim viu vlc vlc-plugin-ffmpeg flatpak websocat wget wireshark-qt xclip qsv xz yay zip zsh zsh-autosuggestions zsh-completions zsh-history-substring-search zsh-syntax-highlighting zsh-theme-powerlevel10k cronie tree-sitter audacity xorg-xhost archlinux-keyring jdk21-openjdk polkit-gnome
+arandr asciinema base-devel bat bettercap bison blueman bore bottom brightnessctl bzip2 ca-certificates cloc cmake visual-studio-code-bin curl discord dmenu docker docker-compose dos2unix dragon-drop-git dunst emote eza expect fastfetch feh ffmpeg filezilla flameshot foremost fq fx gdb ghex ghidra git git-delta gitleaks glow gnupg google-chrome gparted gron guvcview hashcat htmlq htop hwinfo xorg-server i3-gaps i3blocks i3lock i3lock-fancy-git i3status icu inotify-tools iproute2 jless jq kdenlive kitty kompare lazygit libedit libffi libjpeg-turbo libpcap libpng libreoffice-fresh libxml2 libzip llvm lsof ltrace make meld metasploit mise mlocate mplayer ncurses neovim net-tools ngrep nm-connection-editor nmap okular opensnitch openssh openssl parallel perl-image-exiftool php-gd picom pkgconf polybar postgresql-libs python-virtualenv qbittorrent re2c readline ripgrep rlwrap rofi signal-desktop socat sqlite sshpass superfile sysstat tmate tmux tor torbrowser-launcher traceroute trash-cli tree unzip vbindiff veracrypt vim viu vlc vlc-plugin-ffmpeg flatpak websocat wget wireshark-qt xclip qsv xz yay zip zsh zsh-autosuggestions zsh-completions zsh-history-substring-search zsh-syntax-highlighting zsh-theme-powerlevel10k cronie tree-sitter audacity xorg-xhost archlinux-keyring jdk21-openjdk polkit-kde-agent kamoso plasma-desktop plasma-x11-session kwin-x11 konsole alacritty thunar thunar-archive-plugin thunar-volman tumbler ffmpegthumbnailer gvfs gvfs-mtp file-roller
 
 # Yay packages
-ffuf gau pdtm-bin waybackurls cursor-bin fswebcam i3-battery-popup-git rofi-power-menu fabric-ai-bin
+ffuf gau pdtm-bin waybackurls fswebcam caido-desktop caido-cli i3-battery-popup-git rofi-power-menu fabric-ai-bin
+
+# Yay packages (cloud target only — not part of make install)
+openssl-1.1 kasmvncserver-bin
 
 # Flatpak packages
-com.obsproject.Studio org.gnome.Snapshot
+com.obsproject.Studio
 
 # Mise tools
-uv usage pdm rust terraform golang python nodejs
+uv usage pdm rust terraform golang python nodejs opencode
 
 # Mise golang tools
 sw33tLie/sns glitchedgitz/cook x90skysn3k/brutespray sensepost/gowitness
@@ -333,6 +394,7 @@ https://gitlab.com/exploit-database/exploitdb
 https://github.com/laluka/pty4all
 https://github.com/laluka/pypotomux
 https://github.com/hugsy/gef
+https://github.com/c0dejump/HExHTTP
 
 # Clones Wordlists
 https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
@@ -348,9 +410,45 @@ https://github.com/tarraschk/richelieu
 https://github.com/p0dalirius/webapp-wordlists
 ```
 
+### Services
+
+The following systemd services are installed but **disabled and stopped by default**. Enable only what you need:
+
+| Service | Package | Start | Enable at Boot | Purpose |
+|---------|---------|-------|---------------|---------|
+| `docker` | `docker` | auto-started on install (bare metal) | yes (bare metal) | Container runtime |
+| `opensnitchd` | `opensnitch` | `sudo systemctl start opensnitchd` | `sudo systemctl enable opensnitchd` | Egress firewall (opt-in) |
+### Cloud Target (standalone -- `make cloud`)
+
+> **Not part of `make install`** -- this is a standalone target for cloud/remote desktop VMs.
+
+Installs KasmVNC + cloud-init + SSH. KDE Plasma is installed by `make install-gui`. After `make cloud`, the `ska-vnc` alias starts a full KDE Plasma desktop accessible from a browser.
+
+| Service | Package | Start | Purpose |
+|---------|---------|-------|---------|
+| *(user-level)* | `kasmvncserver-bin` | `ska-vnc` | KDE Plasma desktop via browser (VNC over websocket) |
+| `sshd` | `openssh` | auto-enabled | SSH access |
+| `cloud-init` | `cloud-init` | auto-enabled | VM auto-config (network, SSH keys, hostname) |
+
+**Quick start:**
+
+```bash
+ska-vnc
+# KasmVNC running on https://127.0.0.1:8443 (no auth)
+
+# From your local machine, SSH port-forward then open in browser:
+ssh -L 8443:localhost:8443 user@host
+# Access: https://localhost:8443
+
+# Stop:
+vncserver -kill :1
+```
+
+**How it works:** KasmVNC's Xvnc has no GLX extension, so KDE Plasma 6 can't use OpenGL. The `vnc-xstartup` script sets `QT_QUICK_BACKEND=software` to force Qt's software rasterizer. kwin runs without compositing but still manages windows and decorations.
+
 ### Security
 
-- `opensnitch` is here to help you block outgoing packets and connections
+- `opensnitch` is here to help you block outgoing packets and connections (opt-in, start manually)
 - `ufw` is here to help you block incoming packets and requests
 - Be careful though, [docker iptables shenanigans bypass ufw rules](https://richincapie.medium.com/docker-ufw-and-iptables-a-security-flaw-you-need-to-solve-now-40c85587b563)
 
@@ -362,7 +460,7 @@ https://github.com/p0dalirius/webapp-wordlists
 |------|-----------|-----------|
 | OS | Ubuntu | Arch |
 | Install time | 60mn | 20mn |
-| Terminal | Gnome | Kitty |
+| Terminal | Gnome Terminal | Kitty |
 | i3 config | regolith | homemade |
 | Install tool | ansible | Makefile |
 | Img builds | packer | docker |
