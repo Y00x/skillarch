@@ -24,6 +24,7 @@ font pango:monospace 8
 # https://wiki.archlinux.org/index.php/XDG_Autostart
 exec_always --no-startup-id dex --autostart --environment i3
 exec_always --no-startup-id feh --bg-scale /opt/skillarch/assets/bg.jpg
+exec_always --no-startup-id xrandr --output DP-4 --primary
 exec_always --no-startup-id ~/.config/polybar/launch.sh &> /var/tmp/polybar.log
 exec_always --no-startup-id pgrep --exact VBoxService &> /dev/null && killall VBoxClient ; VBoxClient-all
 exec_always --no-startup-id bash -c "killall -q picom ; grep -qF hypervisor /proc/cpuinfo || picom"
@@ -61,7 +62,7 @@ tiling_drag modifier titlebar
 
 # start a terminal
 bindsym $mod+Return exec /usr/bin/kitty
-bindsym $mod+Shift+Return exec /usr/bin/google-chrome-stable
+bindsym $mod+Shift+Return exec /usr/bin/google-chrome-stable --ozone-platform=x11
 
 # kill focused window
 bindsym $mod+Shift+Q kill
@@ -194,7 +195,7 @@ bindsym $mod+m exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
 
 bindsym $mod+Escape exec rofi -show power-menu -modi "power-menu:rofi-power-menu --choices shutdown/reboot/logout/suspend"
 bindsym $mod+l exec i3lock-fancy -f Bitstream-Vera-Serif -t 'Welcome back to SkillArch'
-bindsym $mod+Shift+l exec systemctl suspend
+#bindsym $mod+Shift+l exec systemctl suspend
 
 # Window Colors
 default_border pixel 2

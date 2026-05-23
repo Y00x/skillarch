@@ -115,3 +115,17 @@ source $ZSH/oh-my-zsh.sh
 source /opt/skillarch/config/aliases
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 eval "$(register-python-argcomplete --no-defaults exegol)"
+
+#====PERSO=====
+[ -f ~/.alias_perso ] && source ~/.alias_perso
+[[ -s "/etc/grc.zsh" ]] && source /etc/grc.zsh
+
+# pnpm
+export PNPM_HOME="/home/y0x/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+export OZONE_PLATFORM=x11
